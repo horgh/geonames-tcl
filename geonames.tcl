@@ -1,13 +1,3 @@
-# This package provides a client for the GeoNames Search Webservice:
-# http://www.geonames.org/export/geonames-search.html
-#
-# Among other things, this allows looking up latitude and longitude for
-# locations by name.
-#
-# In order to use this client you must register an account on www.geonames.org.
-# For information about that, see
-# http://www.geonames.org/export/web-services.html.
-
 package provide geonames 0.1
 
 package require http
