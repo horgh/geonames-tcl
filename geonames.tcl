@@ -23,13 +23,13 @@ proc ::geonames::new {username} {
 #
 # geonames: Create this with ::geonames::new
 #
-# name: The 'name' parameter for the query
-proc ::geonames::search {geonames name} {
+# query: The 'q' parameter for the query
+proc ::geonames::search {geonames query} {
 	::http::config -useragent $::geonames::useragent
 	::http::register https 443 [list ::tls::socket -ssl2 0 -ssl3 0 -tls1 1]
 
 	set query [::http::formatQuery \
-		name $name \
+		q $query \
 		username [dict get $geonames username] \
 	]
 	set url $::geonames::url?$query
