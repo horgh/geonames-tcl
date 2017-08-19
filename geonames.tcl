@@ -5,7 +5,8 @@ package require json
 package require tls
 
 namespace eval ::geonames {
-	variable url https://secure.geonames.org/searchJSON
+	variable search_url https://secure.geonames.org/searchJSON
+	variable postalcode_url https://secure.geonames.org/postalCodeSearchJSON
 	variable useragent https://github.com/horgh/geonames-tcl
 	variable timeout [expr 30*1000]
 }
@@ -25,14 +26,73 @@ proc ::geonames::new {username} {
 #
 # query: The 'q' parameter for the query
 proc ::geonames::search {geonames query} {
-	::http::config -useragent $::geonames::useragent
-	::http::register https 443 [list ::tls::socket -ssl2 0 -ssl3 0 -tls1 1]
-
 	set query [::http::formatQuery \
 		q $query \
 		username [dict get $geonames username] \
 	]
-	set url $::geonames::url?$query
+	set url $::geonames::search_url?$query
+
+	set decoded [::geonames::request $url]
+
+	# Response looks like:
+	# {
+	#   "totalResultsCount": n,
+	#   "geonames": [
+	#     {
+	#       [..]
+	#       "name": "<e.g. a city>",
+	#       "countryName": "<e.g., a country>",
+	#       "lat": "n.nn",
+	#       "lng": "-n.nn"
+	#     }
+	#     [..]
+	#    ]
+	# }
+
+	return $decoded
+}
+
+# Query the postal code search API.
+#
+# Parameters:
+#
+# geonames: Create with ::geonames::new
+#
+# postalcode: The postal code
+#
+# country: The country
+proc ::geonames::postalcode {geonames postalcode country} {
+	set query [::http::formatQuery \
+		postalcode $postalcode \
+		country $country \
+		username [dict get $geonames username] \
+	]
+	set url $::geonames::postalcode_url?$query
+
+	set decoded [::geonames::request $url]
+
+	# Response looks like:
+	# {
+	#   "postalCodes": [
+	#     {
+	#       [..]
+	#       "placeName": "<e.g., Tucson>",
+	#       "adminName1": "<e.g., Arizona>",
+	#       "countryCode": "<e.g., US>",
+	#       "lat": "n.nn",
+	#       "lng": "-n.nn"
+	#     }
+	#     [..]
+	#    ]
+	# }
+
+	return $decoded
+}
+
+proc ::geonames::request {url} {
+	::http::config -useragent $::geonames::useragent
+	::http::register https 443 [list ::tls::socket -ssl2 0 -ssl3 0 -tls1 1]
+
 	set token [::http::geturl $url -timeout $::geonames::timeout -binary 1]
 
 	set status [::http::status $token]
@@ -54,21 +114,6 @@ proc ::geonames::search {geonames query} {
 
 	set decoded [::json::json2dict $data]
 
-	# Response looks like:
-	# {
-	#   "totalResultsCount": n,
-	#   "geonames": [
-	#     {
-	#       [..]
-	#       "name": "<e.g. a city>",
-	#       "countryName": "<e.g., a country>",
-	#       "lat": "n.nn",
-	#       "lng": "-n.nn"
-	#     }
-	#     [..]
-	#    ]
-	# }
-
 	return $decoded
 }
 
@@ -80,7 +125,7 @@ proc ::geonames::search {geonames query} {
 # geonames: Create this with ::geonames::new
 #
 # name: The 'name' parameter for the query
-proc ::geonames::latlong {geonames name} {
+proc ::geonames::search_latlong {geonames name} {
 	set response [::geonames::search $geonames $name]
 
 	if {[dict exists $response error]} {
@@ -100,6 +145,44 @@ proc ::geonames::latlong {geonames name} {
 			return [dict create error "no $key found"]
 		}
 		dict set ret $key [dict get $first $key]
+	}
+
+	return $ret
+}
+
+# Query the postalcode API and return the name, country, latitude, and longitude
+# of the first result.
+#
+# Parameters:
+#
+# geonames: Create this with ::geonames::new
+#
+# postalcode: The postal code
+#
+# country: The country
+proc ::geonames::postalcode_latlong {geonames postalcode country} {
+	set response [::geonames::postalcode $geonames $postalcode $country]
+
+	if {[dict exists $response error]} {
+		return $response
+	}
+
+	set first [lindex [dict get $response postalCodes] 0]
+
+	# name in JSON -> name to return
+	set key_map [dict create \
+		placeName   name \
+		countryCode countryName \
+		lat         lat \
+		lng         lng \
+	]
+	set ret [dict create]
+	dict for {key value} $key_map {
+		if {![dict exists $first $key]} {
+			return [dict create error "no $key found"]
+		}
+
+		dict set ret $value [dict get $first $key]
 	}
 
 	return $ret
