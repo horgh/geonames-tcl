@@ -18,6 +18,77 @@ proc ::geonames::new {username} {
 	return [dict create username $username]
 }
 
+# Query the search API and return the name, country, latitude, and longitude of
+# the first result.
+#
+# Parameters:
+#
+# geonames: Create this with ::geonames::new
+#
+# name: The 'name' parameter for the query
+proc ::geonames::search_latlong {geonames name} {
+	set response [::geonames::search $geonames $name]
+
+	if {[dict exists $response error]} {
+		return $response
+	}
+
+	if {![dict exists $response geonames]} {
+		return [dict create error "no results found"]
+	}
+
+	set first [lindex [dict get $response geonames] 0]
+
+	set keys [list name countryName lat lng]
+	set ret [dict create]
+	foreach key $keys {
+		if {![dict exists $first $key]} {
+			return [dict create error "no $key found"]
+		}
+		dict set ret $key [dict get $first $key]
+	}
+
+	return $ret
+}
+
+# Query the postalcode API and return the name, country, latitude, and longitude
+# of the first result.
+#
+# Parameters:
+#
+# geonames: Create this with ::geonames::new
+#
+# postalcode: The postal code
+#
+# country: The country
+proc ::geonames::postalcode_latlong {geonames postalcode country} {
+	set response [::geonames::postalcode $geonames $postalcode $country]
+
+	if {[dict exists $response error]} {
+		return $response
+	}
+
+	set first [lindex [dict get $response postalCodes] 0]
+
+	# name in JSON -> name to return
+	set key_map [dict create \
+		placeName   name \
+		countryCode countryName \
+		lat         lat \
+		lng         lng \
+	]
+	set ret [dict create]
+	dict for {key value} $key_map {
+		if {![dict exists $first $key]} {
+			return [dict create error "no $key found"]
+		}
+
+		dict set ret $value [dict get $first $key]
+	}
+
+	return $ret
+}
+
 # Query the search API.
 #
 # Parameters:
@@ -115,75 +186,4 @@ proc ::geonames::request {url} {
 	set decoded [::json::json2dict $data]
 
 	return $decoded
-}
-
-# Query the search API and return the name, country, latitude, and longitude of
-# the first result.
-#
-# Parameters:
-#
-# geonames: Create this with ::geonames::new
-#
-# name: The 'name' parameter for the query
-proc ::geonames::search_latlong {geonames name} {
-	set response [::geonames::search $geonames $name]
-
-	if {[dict exists $response error]} {
-		return $response
-	}
-
-	if {![dict exists $response geonames]} {
-		return [dict create error "no results found"]
-	}
-
-	set first [lindex [dict get $response geonames] 0]
-
-	set keys [list name countryName lat lng]
-	set ret [dict create]
-	foreach key $keys {
-		if {![dict exists $first $key]} {
-			return [dict create error "no $key found"]
-		}
-		dict set ret $key [dict get $first $key]
-	}
-
-	return $ret
-}
-
-# Query the postalcode API and return the name, country, latitude, and longitude
-# of the first result.
-#
-# Parameters:
-#
-# geonames: Create this with ::geonames::new
-#
-# postalcode: The postal code
-#
-# country: The country
-proc ::geonames::postalcode_latlong {geonames postalcode country} {
-	set response [::geonames::postalcode $geonames $postalcode $country]
-
-	if {[dict exists $response error]} {
-		return $response
-	}
-
-	set first [lindex [dict get $response postalCodes] 0]
-
-	# name in JSON -> name to return
-	set key_map [dict create \
-		placeName   name \
-		countryCode countryName \
-		lat         lat \
-		lng         lng \
-	]
-	set ret [dict create]
-	dict for {key value} $key_map {
-		if {![dict exists $first $key]} {
-			return [dict create error "no $key found"]
-		}
-
-		dict set ret $value [dict get $first $key]
-	}
-
-	return $ret
 }
