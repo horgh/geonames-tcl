@@ -34,6 +34,12 @@ proc ::geonames::search_latlong {geonames name} {
 	}
 
 	if {![dict exists $response geonames]} {
+		# We get errors like status {message {user account not enabled to use the
+		# free webservice. Please enable it on your account page:
+		# http://www.geonames.org/manageaccount } value 10}
+		if {[dict exists $response status message]} {
+			return [dict create error [dict get $response status message]]
+		}
 		return [dict create error "no results found"]
 	}
 
@@ -66,6 +72,13 @@ proc ::geonames::postalcode_latlong {geonames postalcode country} {
 
 	if {[dict exists $response error]} {
 		return $response
+	}
+
+	# We get errors like status {message {user account not enabled to use the
+	# free webservice. Please enable it on your account page:
+	# http://www.geonames.org/manageaccount } value 10}
+	if {[dict exists $response status message]} {
+		return [dict create error [dict get $response status message]]
 	}
 
 	set first [lindex [dict get $response postalCodes] 0]
